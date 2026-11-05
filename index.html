@@ -10,7 +10,7 @@
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
 
-  <div class="bg-white p-6 rounded-xl shadow-lg w-full max-w-xl">
+  <div class="bg-white p-6 rounded-xl shadow-lg w-full max-w-3xl">
     <!-- Header -->
     <div class="text-center mb-6">
       <h1 class="text-2xl font-bold text-gray-800">TKA Berbasis Komputer</h1>
@@ -48,8 +48,8 @@
       <button onclick="startUjian()" class="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-semibold">Mulai Ujian</button>
     </div>
 
-    <!-- Section 3: Lembar Ujian (Satu Soal Per Halaman + Timer) -->
-    <div id="ujianSection" class="hidden space-y-6">
+    <!-- Section 3: Lembar Ujian (Layout Grid CBT: Kiri Soal, Kanan Navigasi Nomor) -->
+    <div id="ujianSection" class="hidden space-y-4">
       <div class="flex justify-between items-center border-b pb-2">
         <h2 id="currentMapel" class="font-bold text-gray-700"></h2>
         <div class="flex items-center space-x-2">
@@ -58,18 +58,47 @@
         </div>
       </div>
 
-      <!-- Wadah Soal Tunggal -->
-      <div id="soalContainer" class="space-y-4 min-h-[180px]">
-        <!-- Render soal aktif lewat JavaScript -->
-      </div>
+      <!-- Grid Layout Utama CBT -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        
+        <!-- Kolom Soal (Lebar 3 kolom) -->
+        <div class="md:col-span-3 space-y-4">
+          <div id="soalContainer" class="space-y-4 min-h-[180px]">
+            <!-- Render soal aktif lewat JavaScript -->
+          </div>
 
-      <!-- Navigasi Soal -->
-      <div class="flex justify-between items-center pt-4 border-t">
-        <button id="btnPrev" onclick="prevSoal()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-semibold text-sm disabled:opacity-50" disabled>Sebelumnya</button>
-        <button id="btnNext" onclick="nextSoal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold text-sm">Selanjutnya</button>
-      </div>
+          <!-- Navigasi Soal (Sebelumnya / Selanjutnya) -->
+          <div class="flex justify-between items-center pt-4 border-t">
+            <button id="btnPrev" onclick="prevSoal()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-semibold text-sm disabled:opacity-50" disabled>Sebelumnya</button>
+            <button id="btnNext" onclick="nextSoal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold text-sm">Selanjutnya</button>
+          </div>
 
-      <button id="btnSubmit" onclick="confirmSubmit()" class="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-semibold hidden">Kirim Jawaban Akhir</button>
+          <button id="btnSubmit" onclick="confirmSubmit()" class="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-semibold hidden">Kirim Jawaban Akhir</button>
+        </div>
+
+        <!-- Kolom Navigasi Nomor Soal (CBT Palette - 1 kolom) -->
+        <div class="border p-4 rounded-xl bg-gray-50 space-y-3">
+          <h3 class="font-bold text-gray-700 text-sm border-b pb-1">Daftar Soal</h3>
+          
+          <!-- Keterangan Warna -->
+          <div class="text-xs space-y-1 text-gray-600 pb-2 border-b">
+            <div class="flex items-center space-x-2">
+              <span class="w-3 h-3 bg-green-500 rounded-sm inline-block"></span>
+              <span>Sudah Dijawab</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="w-3 h-3 bg-gray-200 border rounded-sm inline-block"></span>
+              <span>Belum Dijawab</span>
+            </div>
+          </div>
+
+          <!-- Kotak Nomor Soal -->
+          <div id="nomorPalette" class="grid grid-cols-4 gap-2 max-h-[250px] overflow-y-auto p-1">
+            <!-- Digenerate via JS -->
+          </div>
+        </div>
+
+      </div>
     </div>
   </div>
 
@@ -84,7 +113,7 @@
     let jawabanSiswa = {};
     
     // Konfigurasi Waktu Ujian (dalam Menit)
-    const DURASI_MENIT = 90; // Ubah sesuai kebutuhan (misal: 30 menit)
+    const DURASI_MENIT = 90; 
     let timerInterval = null;
     let sisaWaktuDetik = 0;
 
@@ -153,7 +182,7 @@
         sisaWaktuDetik = DURASI_MENIT * 60;
         mulaiTimer();
         
-        renderSoal();
+        renderUjian();
       } else {
         Swal.fire("Informasi", "Belum ada soal untuk mata pelajaran ini", "info");
       }
@@ -171,7 +200,7 @@
             allowOutsideClick: false,
             confirmButtonText: "OK"
           }).then(() => {
-            submitUjian(true); // Kirim otomatis tanpa konfirmasi
+            submitUjian(true);
           });
         } else {
           sisaWaktuDetik--;
@@ -180,6 +209,11 @@
           document.getElementById("timerDisplay").innerText = `⏱ ${String(menit).padStart(2, '0')}:${String(detik).padStart(2, '0')}`;
         }
       }, 1000);
+    }
+
+    function renderUjian() {
+      renderSoal();
+      renderPalette();
     }
 
     function renderSoal() {
@@ -204,7 +238,7 @@
         </div>
       `;
 
-      // Atur status tombol navigasi
+      // Atur status tombol navigasi bawah
       const btnPrev = document.getElementById("btnPrev");
       const btnNext = document.getElementById("btnNext");
       const btnSubmit = document.getElementById("btnSubmit");
@@ -220,21 +254,52 @@
       }
     }
 
+    function renderPalette() {
+      const paletteContainer = document.getElementById("nomorPalette");
+      paletteContainer.innerHTML = "";
+
+      listSoal.forEach((s, idx) => {
+        const isTerjawab = jawabanSiswa[s.id] !== undefined;
+        const isActive = idx === currentIndex;
+
+        // Styling Warna Tombol Nomor Soal ala CBT
+        let btnColor = "bg-gray-200 text-gray-700 hover:bg-gray-300"; // Belum dijawab
+        if (isTerjawab) {
+          btnColor = "bg-green-500 text-white hover:bg-green-600"; // Sudah dijawab
+        }
+        if (isActive) {
+          btnColor += " ring-2 ring-blue-600 ring-offset-2 font-bold"; // Soal sedang dibuka
+        }
+
+        paletteContainer.innerHTML += `
+          <button onclick="pindahSoal(${idx})" class="py-2 rounded text-sm font-semibold transition ${btnColor}">
+            ${idx + 1}
+          </button>
+        `;
+      });
+    }
+
     function simpanJawaban(soalId, pilihan) {
       jawabanSiswa[soalId] = pilihan;
+      renderPalette(); // Update warna nomor soal secara live
+    }
+
+    function pindahSoal(index) {
+      currentIndex = index;
+      renderUjian();
     }
 
     function nextSoal() {
       if (currentIndex < listSoal.length - 1) {
         currentIndex++;
-        renderSoal();
+        renderUjian();
       }
     }
 
     function prevSoal() {
       if (currentIndex > 0) {
         currentIndex--;
-        renderSoal();
+        renderUjian();
       }
     }
 
@@ -260,7 +325,7 @@
     }
 
     async function submitUjian(isTimeout = false) {
-      clearInterval(timerInterval); // Hentikan timer
+      clearInterval(timerInterval);
 
       const payload = {
         action: "submitUjian",
@@ -280,7 +345,6 @@
             location.reload();
           });
         } else {
-          // Jika waktu habis, langsung tampilkan hasil dan reload tanpa tombol konfirmasi tambahan
           Swal.fire({
             title: "Waktu Habis & Ujian Selesai!",
             html: `Nilai Anda: <b>${res.nilai}</b><br>Jawaban Benar: ${res.benar} dari ${res.total} soal.`,
