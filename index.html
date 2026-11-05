@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LMS - SD Negeri Seda - Sakti</title>
+  <title>Sistem TKA Kelas 6 - Ujian Berbasis Komputer</title>
   <!-- Tailwind CSS & SweetAlert2 -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -13,8 +13,8 @@
   <div class="bg-white p-6 rounded-xl shadow-lg w-full max-w-xl">
     <!-- Header -->
     <div class="text-center mb-6">
-      <h1 class="text-2xl font-bold text-gray-800">Learning Managemen System (LMS)</h1>
-      <p class="text-sm text-gray-500">SD Negeri Seda - Sakti</p>
+      <h1 class="text-2xl font-bold text-gray-800">TKA Berbasis Komputer</h1>
+      <p class="text-sm text-gray-500">Kelas 6 SD</p>
     </div>
 
     <!-- Section 1: Form Login -->
@@ -48,11 +48,14 @@
       <button onclick="startUjian()" class="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-semibold">Mulai Ujian</button>
     </div>
 
-    <!-- Section 3: Lembar Ujian (Satu Soal Per Halaman) -->
+    <!-- Section 3: Lembar Ujian (Satu Soal Per Halaman + Timer) -->
     <div id="ujianSection" class="hidden space-y-6">
       <div class="flex justify-between items-center border-b pb-2">
         <h2 id="currentMapel" class="font-bold text-gray-700"></h2>
-        <span id="soalCounter" class="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium"></span>
+        <div class="flex items-center space-x-2">
+          <span id="timerDisplay" class="text-sm bg-red-100 text-red-700 px-3 py-1 rounded-full font-bold">⏱ 00:00</span>
+          <span id="soalCounter" class="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium"></span>
+        </div>
       </div>
 
       <!-- Wadah Soal Tunggal -->
@@ -72,13 +75,18 @@
 
   <script>
     // MASUKKAN URL DEPLOYMENT APPS SCRIPT ANDA DI SINI
-    const API_URL = "https://script.google.com/macros/s/AKfycbxAzzgDiPXgk-5a0yfxvmVIaejwDsRUrpqDPiInFl4tIYqnnIof_P3r5_AnKr6SgSXE5w/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycb.../exec";
 
     let currentUser = null;
     let listSoal = [];
     let selectedMapel = "";
     let currentIndex = 0;
-    let jawabanSiswa = {}; // Menyimpan pilihan jawaban per id soal
+    let jawabanSiswa = {};
+    
+    // Konfigurasi Waktu Ujian (dalam Menit)
+    const DURASI_MENIT = 30; // Ubah sesuai kebutuhan (misal: 30 menit)
+    let timerInterval = null;
+    let sisaWaktuDetik = 0;
 
     async function fetchAPI(payload) {
       Swal.showLoading();
@@ -140,10 +148,38 @@
         
         document.getElementById("mapelSection").classList.add("hidden");
         document.getElementById("ujianSection").classList.remove("hidden");
+        
+        // Mulai Timer
+        sisaWaktuDetik = DURASI_MENIT * 60;
+        mulaiTimer();
+        
         renderSoal();
       } else {
         Swal.fire("Informasi", "Belum ada soal untuk mata pelajaran ini", "info");
       }
+    }
+
+    function mulaiTimer() {
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        if (sisaWaktuDetik <= 0) {
+          clearInterval(timerInterval);
+          Swal.fire({
+            title: "Waktu Habis!",
+            text: "Waktu pengerjaan ujian telah selesai. Jawaban Anda akan dikirim otomatis.",
+            icon: "warning",
+            allowOutsideClick: false,
+            confirmButtonText: "OK"
+          }).then(() => {
+            submitUjian(true); // Kirim otomatis tanpa konfirmasi
+          });
+        } else {
+          sisaWaktuDetik--;
+          let menit = Math.floor(sisaWaktuDetik / 60);
+          let detik = sisaWaktuDetik % 60;
+          document.getElementById("timerDisplay").innerText = `⏱ ${String(menit).padStart(2, '0')}:${String(detik).padStart(2, '0')}`;
+        }
+      }, 1000);
     }
 
     function renderSoal() {
@@ -219,11 +255,13 @@
         confirmButtonText: "Ya, Kirim",
         cancelButtonText: "Periksa Lagi"
       }).then((result) => {
-        if (result.isConfirmed) submitUjian();
+        if (result.isConfirmed) submitUjian(false);
       });
     }
 
-    async function submitUjian() {
+    async function submitUjian(isTimeout = false) {
+      clearInterval(timerInterval); // Hentikan timer
+
       const payload = {
         action: "submitUjian",
         user: currentUser,
@@ -233,13 +271,24 @@
 
       const res = await fetchAPI(payload);
       if (res && res.status === "success") {
-        Swal.fire({
-          title: "Ujian Selesai!",
-          html: `Nilai Anda: <b>${res.nilai}</b><br>Jawaban Benar: ${res.benar} dari ${res.total} soal.`,
-          icon: "success"
-        }).then(() => {
-          location.reload();
-        });
+        if (!isTimeout) {
+          Swal.fire({
+            title: "Ujian Selesai!",
+            html: `Nilai Anda: <b>${res.nilai}</b><br>Jawaban Benar: ${res.benar} dari ${res.total} soal.`,
+            icon: "success"
+          }).then(() => {
+            location.reload();
+          });
+        } else {
+          // Jika waktu habis, langsung tampilkan hasil dan reload tanpa tombol konfirmasi tambahan
+          Swal.fire({
+            title: "Waktu Habis & Ujian Selesai!",
+            html: `Nilai Anda: <b>${res.nilai}</b><br>Jawaban Benar: ${res.benar} dari ${res.total} soal.`,
+            icon: "info"
+          }).then(() => {
+            location.reload();
+          });
+        }
       }
     }
 
