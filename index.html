@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sistem TKA Kelas 6</title>
+  <title>Sistem TKA Kelas 6 - Ujian Berbasis Komputer</title>
   <!-- Tailwind CSS & SweetAlert2 -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -48,18 +48,25 @@
       <button onclick="startUjian()" class="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-semibold">Mulai Ujian</button>
     </div>
 
-    <!-- Section 3: Lembar Ujian -->
+    <!-- Section 3: Lembar Ujian (Satu Soal Per Halaman) -->
     <div id="ujianSection" class="hidden space-y-6">
       <div class="flex justify-between items-center border-b pb-2">
         <h2 id="currentMapel" class="font-bold text-gray-700"></h2>
-        <span id="soalCounter" class="text-sm bg-gray-200 px-2 py-1 rounded"></span>
+        <span id="soalCounter" class="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium"></span>
       </div>
 
-      <div id="soalContainer" class="space-y-4">
-        <!-- Soal dimasukkan lewat JavaScript -->
+      <!-- Wadah Soal Tunggal -->
+      <div id="soalContainer" class="space-y-4 min-h-[180px]">
+        <!-- Render soal aktif lewat JavaScript -->
       </div>
 
-      <button onclick="confirmSubmit()" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-semibold">Kirim Jawaban</button>
+      <!-- Navigasi Soal -->
+      <div class="flex justify-between items-center pt-4 border-t">
+        <button id="btnPrev" onclick="prevSoal()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-semibold text-sm disabled:opacity-50" disabled>Sebelumnya</button>
+        <button id="btnNext" onclick="nextSoal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold text-sm">Selanjutnya</button>
+      </div>
+
+      <button id="btnSubmit" onclick="confirmSubmit()" class="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-semibold hidden">Kirim Jawaban Akhir</button>
     </div>
   </div>
 
@@ -70,6 +77,8 @@
     let currentUser = null;
     let listSoal = [];
     let selectedMapel = "";
+    let currentIndex = 0;
+    let jawabanSiswa = {}; // Menyimpan pilihan jawaban per id soal
 
     async function fetchAPI(payload) {
       Swal.showLoading();
@@ -126,9 +135,12 @@
       const res = await fetchAPI({ action: "getSoal", mapel: selectedMapel });
       if (res && res.status === "success" && res.soal.length > 0) {
         listSoal = res.soal;
-        renderSoal();
+        currentIndex = 0;
+        jawabanSiswa = {};
+        
         document.getElementById("mapelSection").classList.add("hidden");
         document.getElementById("ujianSection").classList.remove("hidden");
+        renderSoal();
       } else {
         Swal.fire("Informasi", "Belum ada soal untuk mata pelajaran ini", "info");
       }
@@ -136,53 +148,87 @@
 
     function renderSoal() {
       document.getElementById("currentMapel").innerText = selectedMapel;
-      document.getElementById("soalCounter").innerText = `${listSoal.length} Soal`;
+      document.getElementById("soalCounter").innerText = `Soal ${currentIndex + 1} dari ${listSoal.length}`;
       
+      const s = listSoal[currentIndex];
       const container = document.getElementById("soalContainer");
-      container.innerHTML = "";
+      const currentSelected = jawabanSiswa[s.id] || "";
 
-      listSoal.forEach((s, idx) => {
-        container.innerHTML += `
-          <div class="border p-4 rounded-lg space-y-2 bg-gray-50">
-            <p class="font-medium text-gray-800">${idx + 1}. ${s.pertanyaan}</p>
-            <div class="space-y-1 pl-2">
-              ${['A', 'B', 'C', 'D'].map(opt => `
-                <label class="flex items-center space-x-2 text-sm text-gray-700 cursor-pointer">
-                  <input type="radio" name="soal_${s.id}" value="${opt}" class="text-blue-600">
-                  <span><b>${opt}.</b> ${s['op_' + opt.toLowerCase()]}</span>
-                </label>
-              `).join('')}
-            </div>
+      container.innerHTML = `
+        <div class="border p-4 rounded-lg space-y-4 bg-gray-50 shadow-sm">
+          <p class="font-medium text-gray-800 text-base leading-relaxed">${currentIndex + 1}. ${s.pertanyaan}</p>
+          <div class="space-y-2 pl-2">
+            ${['A', 'B', 'C', 'D'].map(opt => `
+              <label class="flex items-center space-x-3 text-sm text-gray-700 cursor-pointer p-2 rounded hover:bg-gray-100 transition">
+                <input type="radio" name="soal_aktif" value="${opt}" ${currentSelected === opt ? 'checked' : ''} onchange="simpanJawaban('${s.id}', '${opt}')" class="text-blue-600 w-4 h-4">
+                <span class="text-base"><b>${opt}.</b> ${s['op_' + opt.toLowerCase()]}</span>
+              </label>
+            `).join('')}
           </div>
-        `;
-      });
+        </div>
+      `;
+
+      // Atur status tombol navigasi
+      const btnPrev = document.getElementById("btnPrev");
+      const btnNext = document.getElementById("btnNext");
+      const btnSubmit = document.getElementById("btnSubmit");
+
+      btnPrev.disabled = currentIndex === 0;
+
+      if (currentIndex === listSoal.length - 1) {
+        btnNext.classList.add("hidden");
+        btnSubmit.classList.remove("hidden");
+      } else {
+        btnNext.classList.remove("hidden");
+        btnSubmit.classList.add("hidden");
+      }
+    }
+
+    function simpanJawaban(soalId, pilihan) {
+      jawabanSiswa[soalId] = pilihan;
+    }
+
+    function nextSoal() {
+      if (currentIndex < listSoal.length - 1) {
+        currentIndex++;
+        renderSoal();
+      }
+    }
+
+    function prevSoal() {
+      if (currentIndex > 0) {
+        currentIndex--;
+        renderSoal();
+      }
     }
 
     function confirmSubmit() {
+      const terjawab = Object.keys(jawabanSiswa).length;
+      const belumTerjawab = listSoal.length - terjawab;
+
+      let warningText = "Pastikan semua jawaban sudah diperiksa.";
+      if (belumTerjawab > 0) {
+        warningText = `Perhatian: Masih ada ${belumTerjawab} soal yang belum Anda jawab!`;
+      }
+
       Swal.fire({
-        title: "Kirim Jawaban?",
-        text: "Pastikan semua soal sudah terjawab dengan benar.",
-        icon: "question",
+        title: "Kirim Jawaban Ujian?",
+        text: warningText,
+        icon: "warning",
         showCancelButton: true,
         confirmButtonText: "Ya, Kirim",
-        cancelButtonText: "Batal"
+        cancelButtonText: "Periksa Lagi"
       }).then((result) => {
         if (result.isConfirmed) submitUjian();
       });
     }
 
     async function submitUjian() {
-      const jawaban = {};
-      listSoal.forEach(s => {
-        const selected = document.querySelector(`input[name="soal_${s.id}"]:checked`);
-        if (selected) jawaban[s.id] = selected.value;
-      });
-
       const payload = {
         action: "submitUjian",
         user: currentUser,
         mapel: selectedMapel,
-        jawaban: jawaban
+        jawaban: jawabanSiswa
       };
 
       const res = await fetchAPI(payload);
