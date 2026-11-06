@@ -48,12 +48,12 @@
       <button onclick="startUjian()" class="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-semibold">Mulai Ujian</button>
     </div>
 
-    <!-- Section 3: Lembar Ujian (Layout Grid CBT: Kiri Soal, Kanan Navigasi Nomor) -->
+    <!-- Section 3: Lembar Ujian (Timer Per Soal 5 Menit) -->
     <div id="ujianSection" class="hidden space-y-4">
       <div class="flex justify-between items-center border-b pb-2">
         <h2 id="currentMapel" class="font-bold text-gray-700"></h2>
         <div class="flex items-center space-x-2">
-          <span id="timerDisplay" class="text-sm bg-red-100 text-red-700 px-3 py-1 rounded-full font-bold">⏱ 00:00</span>
+          <span id="timerDisplay" class="text-sm bg-red-100 text-red-700 px-3 py-1 rounded-full font-bold">⏱ 05:00</span>
           <span id="soalCounter" class="text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium"></span>
         </div>
       </div>
@@ -67,7 +67,7 @@
             <!-- Render soal aktif lewat JavaScript -->
           </div>
 
-          <!-- Navigasi Soal (Sebelumnya / Selanjutnya) -->
+          <!-- Navigasi Soal -->
           <div class="flex justify-between items-center pt-4 border-t">
             <button id="btnPrev" onclick="prevSoal()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg font-semibold text-sm disabled:opacity-50" disabled>Sebelumnya</button>
             <button id="btnNext" onclick="nextSoal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold text-sm">Selanjutnya</button>
@@ -76,11 +76,10 @@
           <button id="btnSubmit" onclick="confirmSubmit()" class="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-semibold hidden">Kirim Jawaban Akhir</button>
         </div>
 
-        <!-- Kolom Navigasi Nomor Soal (CBT Palette - 1 kolom) -->
+        <!-- Kolom Navigasi Nomor Soal (CBT Palette) -->
         <div class="border p-4 rounded-xl bg-gray-50 space-y-3">
           <h3 class="font-bold text-gray-700 text-sm border-b pb-1">Daftar Soal</h3>
           
-          <!-- Keterangan Warna -->
           <div class="text-xs space-y-1 text-gray-600 pb-2 border-b">
             <div class="flex items-center space-x-2">
               <span class="w-3 h-3 bg-green-500 rounded-sm inline-block"></span>
@@ -92,7 +91,6 @@
             </div>
           </div>
 
-          <!-- Kotak Nomor Soal -->
           <div id="nomorPalette" class="grid grid-cols-4 gap-2 max-h-[250px] overflow-y-auto p-1">
             <!-- Digenerate via JS -->
           </div>
@@ -104,18 +102,18 @@
 
   <script>
     // MASUKKAN URL DEPLOYMENT APPS SCRIPT ANDA DI SINI
-    const API_URL = "https://script.google.com/macros/s/AKfycbxAzzgDiPXgk-5a0yfxvmVIaejwDsRUrpqDPiInFl4tIYqnnIof_P3r5_AnKr6SgSXE5w/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycb.../exec";
 
     let currentUser = null;
     let listSoal = [];
     let selectedMapel = "";
     let currentIndex = 0;
     let jawabanSiswa = {};
+    let waktuSisaPerSoal = {}; // Menyimpan sisa detik untuk setiap soal
     
-    // Konfigurasi Waktu Ujian (dalam Menit)
-    const DURASI_MENIT = 90; 
+    // Konfigurasi Waktu per Soal (dalam Menit)
+    const WAKTU_PER_SOAL_MENIT = 5; 
     let timerInterval = null;
-    let sisaWaktuDetik = 0;
 
     async function fetchAPI(payload) {
       Swal.showLoading();
@@ -137,7 +135,7 @@
       const nis = document.getElementById("nisInput").value;
       const pass = document.getElementById("passInput").value;
 
-      if (!nis || !pass) return Swal.fire("Peringatan", "Lengkapi NISN dan Password!", "warning");
+      if (!nis || !pass) return Swal.fire("Peringatan", "Lengkapi NIS dan Password!", "warning");
 
       const res = await fetchAPI({ action: "login", nis: nis, password: pass });
       if (res && res.status === "success") {
@@ -174,13 +172,15 @@
         listSoal = res.soal;
         currentIndex = 0;
         jawabanSiswa = {};
+        waktuSisaPerSoal = {};
+
+        // Inisialisasi waktu 5 menit (300 detik) untuk masing-masing soal
+        listSoal.forEach(s => {
+          waktuSisaPerSoal[s.id] = WAKTU_PER_SOAL_MENIT * 60;
+        });
         
         document.getElementById("mapelSection").classList.add("hidden");
         document.getElementById("ujianSection").classList.remove("hidden");
-        
-        // Mulai Timer
-        sisaWaktuDetik = DURASI_MENIT * 60;
-        mulaiTimer();
         
         renderUjian();
       } else {
@@ -188,24 +188,41 @@
       }
     }
 
-    function mulaiTimer() {
+    function mulaiTimerSoal() {
       clearInterval(timerInterval);
+      
       timerInterval = setInterval(() => {
-        if (sisaWaktuDetik <= 0) {
+        const currentSoalId = listSoal[currentIndex].id;
+
+        if (waktuSisaPerSoal[currentSoalId] <= 0) {
           clearInterval(timerInterval);
-          Swal.fire({
-            title: "Waktu Habis!",
-            text: "Waktu pengerjaan ujian telah selesai. Jawaban Anda akan dikirim otomatis.",
-            icon: "warning",
-            allowOutsideClick: false,
-            confirmButtonText: "OK"
-          }).then(() => {
-            submitUjian(true);
-          });
+          
+          // Jika waktu soal ini habis, otomatis pindah ke soal berikutnya atau submit jika di soal terakhir
+          if (currentIndex < listSoal.length - 1) {
+            Swal.fire({
+              title: "Waktu Soal Habis!",
+              text: `Waktu untuk soal nomor ${currentIndex + 1} telah habis. Berpindah ke soal berikutnya.`,
+              icon: "warning",
+              timer: 2000,
+              showConfirmButton: false
+            });
+            nextSoal();
+          } else {
+            Swal.fire({
+              title: "Ujian Selesai!",
+              text: "Waktu pengerjaan soal terakhir telah habis. Jawaban akan dikirim otomatis.",
+              icon: "info",
+              allowOutsideClick: false,
+              confirmButtonText: "OK"
+            }).then(() => {
+              submitUjian(true);
+            });
+          }
         } else {
-          sisaWaktuDetik--;
-          let menit = Math.floor(sisaWaktuDetik / 60);
-          let detik = sisaWaktuDetik % 60;
+          waktuSisaPerSoal[currentSoalId]--;
+          let sisa = waktuSisaPerSoal[currentSoalId];
+          let menit = Math.floor(sisa / 60);
+          let detik = sisa % 60;
           document.getElementById("timerDisplay").innerText = `⏱ ${String(menit).padStart(2, '0')}:${String(detik).padStart(2, '0')}`;
         }
       }, 1000);
@@ -214,6 +231,7 @@
     function renderUjian() {
       renderSoal();
       renderPalette();
+      mulaiTimerSoal(); // Jalankan timer khusus untuk soal yang sedang aktif
     }
 
     function renderSoal() {
@@ -238,7 +256,6 @@
         </div>
       `;
 
-      // Atur status tombol navigasi bawah
       const btnPrev = document.getElementById("btnPrev");
       const btnNext = document.getElementById("btnNext");
       const btnSubmit = document.getElementById("btnSubmit");
@@ -262,13 +279,12 @@
         const isTerjawab = jawabanSiswa[s.id] !== undefined;
         const isActive = idx === currentIndex;
 
-        // Styling Warna Tombol Nomor Soal ala CBT
-        let btnColor = "bg-gray-200 text-gray-700 hover:bg-gray-300"; // Belum dijawab
+        let btnColor = "bg-gray-200 text-gray-700 hover:bg-gray-300"; 
         if (isTerjawab) {
-          btnColor = "bg-green-500 text-white hover:bg-green-600"; // Sudah dijawab
+          btnColor = "bg-green-500 text-white hover:bg-green-600"; 
         }
         if (isActive) {
-          btnColor += " ring-2 ring-blue-600 ring-offset-2 font-bold"; // Soal sedang dibuka
+          btnColor += " ring-2 ring-blue-600 ring-offset-2 font-bold"; 
         }
 
         paletteContainer.innerHTML += `
@@ -281,16 +297,18 @@
 
     function simpanJawaban(soalId, pilihan) {
       jawabanSiswa[soalId] = pilihan;
-      renderPalette(); // Update warna nomor soal secara live
+      renderPalette();
     }
 
     function pindahSoal(index) {
+      clearInterval(timerInterval); // Hentikan timer soal sebelumnya
       currentIndex = index;
       renderUjian();
     }
 
     function nextSoal() {
       if (currentIndex < listSoal.length - 1) {
+        clearInterval(timerInterval);
         currentIndex++;
         renderUjian();
       }
@@ -298,6 +316,7 @@
 
     function prevSoal() {
       if (currentIndex > 0) {
+        clearInterval(timerInterval);
         currentIndex--;
         renderUjian();
       }
