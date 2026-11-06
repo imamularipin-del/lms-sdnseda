@@ -135,7 +135,7 @@
       const nis = document.getElementById("nisInput").value;
       const pass = document.getElementById("passInput").value;
 
-      if (!nis || !pass) return Swal.fire("Peringatan", "Lengkapi NIS dan Password!", "warning");
+      if (!nis || !pass) return Swal.fire("Peringatan", "Lengkapi NISN dan Password!", "warning");
 
       const res = await fetchAPI({ action: "login", nis: nis, password: pass });
       if (res && res.status === "success") {
