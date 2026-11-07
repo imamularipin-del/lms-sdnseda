@@ -48,7 +48,7 @@
       <button onclick="startUjian()" class="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-semibold">Mulai Ujian</button>
     </div>
 
-    <!-- Section 3: Lembar Ujian (Timer Per Soal 5 Menit) -->
+    <!-- Section 3: Lembar Ujian (Anti Kecurangan + Timer Per Soal) -->
     <div id="ujianSection" class="hidden space-y-4">
       <div class="flex justify-between items-center border-b pb-2">
         <h2 id="currentMapel" class="font-bold text-gray-700"></h2>
@@ -102,18 +102,18 @@
 
   <script>
     // MASUKKAN URL DEPLOYMENT APPS SCRIPT ANDA DI SINI
-    const API_URL = "https://script.google.com/macros/s/AKfycbxAzzgDiPXgk-5a0yfxvmVIaejwDsRUrpqDPiInFl4tIYqnnIof_P3r5_AnKr6SgSXE5w/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycb.../exec";
 
     let currentUser = null;
     let listSoal = [];
     let selectedMapel = "";
     let currentIndex = 0;
     let jawabanSiswa = {};
-    let waktuSisaPerSoal = {}; // Menyimpan sisa detik untuk setiap soal
+    let waktuSisaPerSoal = {};
     
-    // Konfigurasi Waktu per Soal (dalam Menit)
     const WAKTU_PER_SOAL_MENIT = 5; 
     let timerInterval = null;
+    let warningCount = 0; // Menghitung berapa kali siswa mencoba curang keluar tab
 
     async function fetchAPI(payload) {
       Swal.showLoading();
@@ -173,8 +173,8 @@
         currentIndex = 0;
         jawabanSiswa = {};
         waktuSisaPerSoal = {};
+        warningCount = 0;
 
-        // Inisialisasi waktu 5 menit (300 detik) untuk masing-masing soal
         listSoal.forEach(s => {
           waktuSisaPerSoal[s.id] = WAKTU_PER_SOAL_MENIT * 60;
         });
@@ -183,9 +183,74 @@
         document.getElementById("ujianSection").classList.remove("hidden");
         
         renderUjian();
+        inisialisasiKeamanan(); // Aktifkan pengaman anti-kecurangan saat ujian dimulai
       } else {
         Swal.fire("Informasi", "Belum ada soal untuk mata pelajaran ini", "info");
       }
+    }
+
+    // --- FITUR KEAMANAN: ANTI-KECURANGAN ---
+    function inisialisasiKeamanan() {
+      // 1. Blokir Klik Kanan
+      document.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        Swal.fire({
+          toast: true,
+          position: 'top-end',
+          icon: 'warning',
+          title: 'Klik kanan dinonaktifkan selama ujian!',
+          showConfirmButton: false,
+          timer: 2000
+        });
+      });
+
+      // 2. Blokir Kombinasi Tombol Pintas (Ctrl+C, Ctrl+V, Ctrl+U, F12, dll)
+      document.addEventListener('keydown', function(e) {
+        if (
+          e.key === 'F12' || 
+          (e.ctrlKey && (e.key === 'c' || e.key === 'v' || e.key === 'u' || e.key === 'a' || e.key === 'p'))
+        ) {
+          e.preventDefault();
+          Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'warning',
+            title: 'Aksi pintas keyboard diblokir!',
+            showConfirmButton: false,
+            timer: 2000
+          });
+        }
+      });
+
+      // 3. Deteksi Keluar Tab / Pindah Aplikasi (Visibility API)
+      document.addEventListener('visibilitychange', function() {
+        // Pastikan ujian sedang aktif (section ujian terlihat)
+        const isUjianActive = !document.getElementById('ujianSection').classList.contains('hidden');
+        
+        if (document.hidden && isUjianActive) {
+          warningCount++;
+          
+          if (warningCount <= 2) {
+            Swal.fire({
+              title: "Peringatan Kecurangan!",
+              text: `Anda terdeteksi keluar dari halaman ujian! Peringatan ke-${warningCount}. Tetaplah berada di halaman ujian.`,
+              icon: "warning",
+              confirmButtonText: "Saya Mengerti"
+            });
+          } else {
+            // Jika sudah 3 kali ketahuan melanggar, paksa submit ujian otomatis
+            Swal.fire({
+              title: "Ujian Dihentikan!",
+              text: "Anda terdeteksi sering meninggalkan halaman ujian. Sistem otomatis mengirimkan jawaban Anda.",
+              icon: "error",
+              allowOutsideClick: false,
+              confirmButtonText: "OK"
+            }).then(() => {
+              submitUjian(true);
+            });
+          }
+        }
+      });
     }
 
     function mulaiTimerSoal() {
@@ -197,7 +262,6 @@
         if (waktuSisaPerSoal[currentSoalId] <= 0) {
           clearInterval(timerInterval);
           
-          // Jika waktu soal ini habis, otomatis pindah ke soal berikutnya atau submit jika di soal terakhir
           if (currentIndex < listSoal.length - 1) {
             Swal.fire({
               title: "Waktu Soal Habis!",
@@ -231,7 +295,7 @@
     function renderUjian() {
       renderSoal();
       renderPalette();
-      mulaiTimerSoal(); // Jalankan timer khusus untuk soal yang sedang aktif
+      mulaiTimerSoal();
     }
 
     function renderSoal() {
@@ -243,7 +307,7 @@
       const currentSelected = jawabanSiswa[s.id] || "";
 
       container.innerHTML = `
-        <div class="border p-4 rounded-lg space-y-4 bg-gray-50 shadow-sm">
+        <div class="border p-4 rounded-lg space-y-4 bg-gray-50 shadow-sm select-none">
           <p class="font-medium text-gray-800 text-base leading-relaxed">${currentIndex + 1}. ${s.pertanyaan}</p>
           <div class="space-y-2 pl-2">
             ${['A', 'B', 'C', 'D'].map(opt => `
@@ -301,7 +365,7 @@
     }
 
     function pindahSoal(index) {
-      clearInterval(timerInterval); // Hentikan timer soal sebelumnya
+      clearInterval(timerInterval);
       currentIndex = index;
       renderUjian();
     }
@@ -365,7 +429,7 @@
           });
         } else {
           Swal.fire({
-            title: "Waktu Habis & Ujian Selesai!",
+            title: "Ujian Selesai / Dihentikan!",
             html: `Nilai Anda: <b>${res.nilai}</b><br>Jawaban Benar: ${res.benar} dari ${res.total} soal.`,
             icon: "info"
           }).then(() => {
