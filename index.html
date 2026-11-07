@@ -13,7 +13,7 @@
   <div class="bg-white p-6 rounded-xl shadow-lg w-full max-w-3xl">
     <!-- Header -->
     <div class="text-center mb-6">
-      <h1 class="text-2xl font-bold text-gray-800">Sisakti (Sistem Sumatif Kataji Inspiratif) - Ujian Berbasis Komputer</h1>
+      <h1 class="text-2xl font-bold text-gray-800">Sisakti (Sistem Sumatif Kataji Inspiratif)</h1>
       <p class="text-sm text-gray-500">SD Negeri Seda</p>
     </div>
 
@@ -135,7 +135,7 @@
       const nis = document.getElementById("nisInput").value;
       const pass = document.getElementById("passInput").value;
 
-      if (!nis || !pass) return Swal.fire("Peringatan", "Lengkapi NI dan Password!", "warning");
+      if (!nis || !pass) return Swal.fire("Peringatan", "Lengkapi NISN dan Password!", "warning");
 
       const res = await fetchAPI({ action: "login", nis: nis, password: pass });
       if (res && res.status === "success") {
